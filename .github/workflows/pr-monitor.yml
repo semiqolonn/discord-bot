@@ -8,6 +8,7 @@ on:
 jobs:
   check_merged_prs:
     runs-on: ubuntu-latest
+    environment: discord
     env:
       GH_PAT: ${{ secrets.GH_PAT }}
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
