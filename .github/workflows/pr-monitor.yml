@@ -2,13 +2,13 @@ name: Monitor PR Merges Across All Repos
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # every 5 minutes
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
   check_merged_prs:
     runs-on: ubuntu-latest
-    environment: discord  # 👈 This enables access to 'discord' environment secrets
+    environment: discord
     env:
       GH_PAT: ${{ secrets.GH_PAT }}
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -19,7 +19,7 @@ jobs:
 
       - name: Fetch and notify merged PRs
         run: |
-          cutoff=$(date -u -d '5 minutes ago' +%s)
+          cutoff=$(date -u -d '30 minutes ago' +%s)
 
           echo "🔍 Fetching user repositories..."
           user_repos_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/user/repos?per_page=100")
