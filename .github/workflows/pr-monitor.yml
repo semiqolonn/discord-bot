@@ -1,44 +1,22 @@
-name: Monitor PR Merges Across All Repos
+- name: Check PRs and notify Discord
+  run: |
+    echo "🔍 Fetching your repositories..."
+    repos=$(curl -s -H "Authorization: token $GH_PAT" https://api.github.com/user/repos?per_page=100 | jq -r '.[].full_name')
 
-on:
-  schedule:
-    - cron: '*/5 * * * *'  # every 5 minutes
-  workflow_dispatch:
+    for repo in $repos; do
+      echo "Checking repo: $repo"
+      prs=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/repos/$repo/pulls?state=closed&per_page=30")
 
-jobs:
-  check_merged_prs:
-    runs-on: ubuntu-latest
-    env:
-      GH_PAT: ${{ secrets.GH_PAT }}
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-      GITHUB_ACTOR: ${{ github.actor }}
-    steps:
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      echo "$prs" | jq -c --arg actor "$GITHUB_ACTOR" '.[] | select(.user.login == $actor) | select(.merged_at != null)' | while read pr; do
+        title=$(echo "$pr" | jq -r '.title')
+        url=$(echo "$pr" | jq -r '.html_url')
+        user=$(echo "$pr" | jq -r '.user.login')
+        repo_name=$(echo "$pr" | jq -r '.base.repo.full_name')
+        merged_at=$(echo "$pr" | jq -r '.merged_at')
 
-      - name: Check PRs and notify Discord
-        run: |
-          echo "🔍 Fetching your repositories..."
-          repos=$(curl -s -H "Authorization: token $GH_PAT" https://api.github.com/user/repos?per_page=100 | jq -r '.[].full_name')
+        msg=$(printf "✅ **PR Merged** in \`%s\`\n**Title:** %s\n**Author:** %s\n**URL:** %s\n**Merged At:** %s" "$repo_name" "$title" "$user" "$url" "$merged_at")
 
-          for repo in $repos; do
-            echo "Checking repo: $repo"
-            prs=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/repos/$repo/pulls?state=closed&per_page=30")
-
-            echo "$prs" | jq -c --arg actor "$GITHUB_ACTOR" '.[] | select(.user.login == $actor) | select(.merged_at != null)' | while read pr; do
-              title=$(echo "$pr" | jq -r '.title')
-              url=$(echo "$pr" | jq -r '.html_url')
-              user=$(echo "$pr" | jq -r '.user.login')
-              repo_name=$(echo "$pr" | jq -r '.base.repo.full_name')
-              merged_at=$(echo "$pr" | jq -r '.merged_at')
-
-              msg="✅ **PR Merged** in \`$repo_name\`  
-**Title:** $title  
-**Author:** $user  
-**URL:** $url  
-**Merged At:** $merged_at"
-
-              payload=$(jq -n --arg content "$msg" '{content: $content}')
-              curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"
-            done
-          done
+        payload=$(jq -n --arg content "$msg" '{content: $content}')
+        curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"
+      done
+    done
