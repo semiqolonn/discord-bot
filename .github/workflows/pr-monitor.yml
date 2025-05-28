@@ -2,8 +2,8 @@ name: Monitor PR Merges Across All Repos
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # run every 5 minutes
-  workflow_dispatch:       # allow manual trigger from UI
+    - cron: '*/5 * * * *'  # every 5 minutes
+  workflow_dispatch:       # manual trigger
 
 jobs:
   check_merged_prs:
@@ -12,20 +12,54 @@ jobs:
       GH_PAT: ${{ secrets.GH_PAT }}
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       GITHUB_ACTOR: ${{ github.actor }}
+      ORG_NAME: YOUR_ORG_NAME   # Set your org name here or leave empty to skip org repos
     steps:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Check PRs and notify Discord
+      - name: Fetch and notify merged PRs
         run: |
-          echo "🔍 Fetching your repositories..."
-          repos=$(curl -s -H "Authorization: token $GH_PAT" https://api.github.com/user/repos?per_page=100 | jq -r '.[].full_name')
+          echo "🔍 Fetching user repositories..."
+          user_repos_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/user/repos?per_page=100")
+          echo "User repos API response preview:"
+          echo "$user_repos_response" | head -n 10
 
-          for repo in $repos; do
-            echo "Checking repo: $repo"
-            prs=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/repos/$repo/pulls?state=closed&per_page=30")
+          if echo "$user_repos_response" | jq -e '.message' >/dev/null; then
+            echo "Error fetching user repos: $(echo "$user_repos_response" | jq -r '.message')"
+            exit 1
+          fi
 
-            echo "$prs" | jq -c --arg actor "$GITHUB_ACTOR" '.[] | select(.user.login == $actor) | select(.merged_at != null)' | while read pr; do
+          user_repos=$(echo "$user_repos_response" | jq -r '.[].full_name')
+
+          org_repos=""
+          if [ -n "$ORG_NAME" ]; then
+            echo "🔍 Fetching organization repositories for org: $ORG_NAME"
+            org_repos_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/orgs/$ORG_NAME/repos?per_page=100")
+            echo "Org repos API response preview:"
+            echo "$org_repos_response" | head -n 10
+
+            if echo "$org_repos_response" | jq -e '.message' >/dev/null; then
+              echo "Error fetching org repos: $(echo "$org_repos_response" | jq -r '.message')"
+              exit 1
+            fi
+
+            org_repos=$(echo "$org_repos_response" | jq -r '.[].full_name')
+          fi
+
+          all_repos=$(echo -e "$user_repos\n$org_repos" | sort | uniq)
+
+          echo "Total repositories found: $(echo "$all_repos" | wc -l)"
+
+          for repo in $all_repos; do
+            echo "Checking repository: $repo"
+            prs_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/repos/$repo/pulls?state=closed&per_page=30")
+
+            if echo "$prs_response" | jq -e '.message' >/dev/null; then
+              echo "Error fetching PRs for $repo: $(echo "$prs_response" | jq -r '.message')"
+              continue
+            fi
+
+            echo "$prs_response" | jq -c --arg actor "$GITHUB_ACTOR" '.[] | select(.user.login == $actor) | select(.merged_at != null)' | while read -r pr; do
               title=$(echo "$pr" | jq -r '.title')
               url=$(echo "$pr" | jq -r '.html_url')
               user=$(echo "$pr" | jq -r '.user.login')
