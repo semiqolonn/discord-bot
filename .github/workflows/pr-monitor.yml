@@ -8,7 +8,7 @@ on:
 jobs:
   check_merged_prs:
     runs-on: ubuntu-latest
-    environment: discord
+    environtment: discord
     env:
       GH_PAT: ${{ secrets.GH_PAT }}
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -20,12 +20,12 @@ jobs:
       - name: Fetch and notify merged PRs
         run: |
           echo "🔍 Fetching user repositories..."
-          user_repos_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/users/$GITHUB_ACTOR/repos?per_page=100")
+          user_repos_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/user/repos?per_page=100")
           echo "User repos API response preview:"
           echo "$user_repos_response" | head -n 10
 
-          if echo "$user_repos_response" | jq -e '.message' >/dev/null; then
-            echo "Error fetching user repos: $(echo "$user_repos_response" | jq -r '.message')"
+          if echo "$user_repos_response" | jq -e 'type == "object" and has("message")' >/dev/null; then
+            echo "❌ Error fetching user repos: $(echo "$user_repos_response" | jq -r '.message')"
             exit 1
           fi
 
@@ -38,8 +38,8 @@ jobs:
             echo "Org repos API response preview:"
             echo "$org_repos_response" | head -n 10
 
-            if echo "$org_repos_response" | jq -e '.message' >/dev/null; then
-              echo "Error fetching org repos: $(echo "$org_repos_response" | jq -r '.message')"
+            if echo "$org_repos_response" | jq -e 'type == "object" and has("message")' >/dev/null; then
+              echo "❌ Error fetching org repos: $(echo "$org_repos_response" | jq -r '.message')"
               exit 1
             fi
 
@@ -48,14 +48,14 @@ jobs:
 
           all_repos=$(echo -e "$user_repos\n$org_repos" | sort | uniq)
 
-          echo "Total repositories found: $(echo "$all_repos" | wc -l)"
+          echo "✅ Total repositories found: $(echo "$all_repos" | wc -l)"
 
           for repo in $all_repos; do
-            echo "Checking repository: $repo"
+            echo "📦 Checking repository: $repo"
             prs_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/repos/$repo/pulls?state=closed&per_page=30")
 
-            if echo "$prs_response" | jq -e '.message' >/dev/null; then
-              echo "Error fetching PRs for $repo: $(echo "$prs_response" | jq -r '.message')"
+            if echo "$prs_response" | jq -e 'type == "object" and has("message")' >/dev/null; then
+              echo "❌ Error fetching PRs for $repo: $(echo "$prs_response" | jq -r '.message')"
               continue
             fi
 
