@@ -19,6 +19,8 @@ jobs:
 
       - name: Fetch and notify merged PRs
         run: |
+          cutoff=$(date -u -d '5 minutes ago' +%s)
+
           echo "🔍 Fetching user repositories..."
           user_repos_response=$(curl -s -H "Authorization: token $GH_PAT" "https://api.github.com/user/repos?per_page=100")
           echo "User repos API response preview:"
@@ -60,11 +62,17 @@ jobs:
             fi
 
             echo "$prs_response" | jq -c --arg actor "$GITHUB_ACTOR" '.[] | select(.user.login == $actor) | select(.merged_at != null)' | while read -r pr; do
+              merged_at=$(echo "$pr" | jq -r '.merged_at')
+              merged_at_epoch=$(date -u -d "$merged_at" +%s 2>/dev/null || echo 0)
+
+              if [ "$merged_at_epoch" -lt "$cutoff" ]; then
+                continue
+              fi
+
               title=$(echo "$pr" | jq -r '.title')
               url=$(echo "$pr" | jq -r '.html_url')
               user=$(echo "$pr" | jq -r '.user.login')
               repo_name=$(echo "$pr" | jq -r '.base.repo.full_name')
-              merged_at=$(echo "$pr" | jq -r '.merged_at')
 
               msg=$(printf "✅ **PR Merged** in \`%s\`\n**Title:** %s\n**Author:** %s\n**URL:** %s\n**Merged At:** %s" "$repo_name" "$title" "$user" "$url" "$merged_at")
 
@@ -72,3 +80,4 @@ jobs:
               curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"
             done
           done
+
