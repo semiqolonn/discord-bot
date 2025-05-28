@@ -3,12 +3,12 @@ name: Monitor PR Merges Across All Repos
 on:
   schedule:
     - cron: '*/5 * * * *'  # every 5 minutes
-  workflow_dispatch:       # manual trigger
+  workflow_dispatch:
 
 jobs:
   check_merged_prs:
     runs-on: ubuntu-latest
-    environtment: discord
+    environment: discord  # 👈 This enables access to 'discord' environment secrets
     env:
       GH_PAT: ${{ secrets.GH_PAT }}
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
