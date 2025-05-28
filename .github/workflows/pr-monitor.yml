@@ -12,7 +12,6 @@ jobs:
       GH_PAT: ${{ secrets.GH_PAT }}
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       GITHUB_ACTOR: ${{ github.actor }}
-      ORG_NAME: YOUR_ORG_NAME   # Set your org name here or leave empty to skip org repos
     steps:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
